@@ -9,7 +9,7 @@ BANDS = {
     "delta": (0.5, 4),
     "theta": (4, 8),
     "alpha": (8, 13),
-    "beta": (13, 30),
+    "beta": (13, 38),
     "gamma": (30, 45)
 }
 
@@ -117,3 +117,4 @@ def extract_features(epoch, sf):
         ])
 
     return np.array(features)
+
