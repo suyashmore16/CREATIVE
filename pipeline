@@ -1,0 +1,19 @@
+from acquisition.lsl_eeg_reader import LSLEEGReader
+from signal_processing.bandpass import bandpass_filter
+
+reader = LSLEEGReader(expected_srate=250.0, buffer_seconds=10.0)
+reader.connect()
+
+while True:
+    reader.pull_chunk(max_samples=256)
+
+    buf = reader.get_buffer()
+    if buf.data.shape[0] == 0:
+        continue
+
+    filtered = bandpass_filter(
+        buf.data,
+        sfreq=reader.srate if reader.srate else 250.0,
+        lowcut=1.0,
+        highcut=40.0
+    )
