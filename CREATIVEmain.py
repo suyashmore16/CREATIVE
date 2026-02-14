@@ -7,19 +7,26 @@ from LSL import LSLEEGReader
 from raw_logger import RawEEGLogger
 from event_logger import EventLogger
 from session_metadata import write_session_metadata
-
-#preprocessing code
+# --------------------
+# LOAD + PREPROCESS
+# --------------------
 raw = mne.io.read_raw_edf("subject01.edf", preload=True)
 epochs, ica = preprocess_eeg(raw)
 
-#feature extraction main
-sfreq = 256
+sfreq = int(raw.info['sfreq'])
 
-# example EEG window: (channels, samples)
-epoch = np.random.randn(4, 512)
+# --------------------
+# FEATURE EXTRACTION
+# --------------------
+all_features = []
 
-features = extract_features(epoch, sfreq)
+data = epochs.get_data()  # (n_epochs, n_channels, n_samples)
 
-print(features)
-print(features.shape)
+for epoch in data:
+    features = extract_features(epoch, sfreq)
+    all_features.append(features)
+
+all_features = np.array(all_features)
+
+print("Feature matrix shape:", all_features.shape)
 
