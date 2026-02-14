@@ -1,32 +1,69 @@
-import mne
-from eeg_preprocessing import preprocess_eeg
-import numpy as np
-from eeg_features import extract_features
-import joblib
-from LSL import LSLEEGReader
-from raw_logger import RawEEGLogger
-from event_logger import EventLogger
+import sys
+import select
+import time
+
+from acquisition.lsl_eeg_reader import LSLEEGReader
+from acquisition.raw_logger import RawEEGLogger
+from acquisition.event_logger import EventLogger
 from session_metadata import write_session_metadata
-# --------------------
-# LOAD + PREPROCESS
-# --------------------
-raw = mne.io.read_raw_edf("subject01.edf", preload=True)
-epochs, ica = preprocess_eeg(raw)
 
-sfreq = int(raw.info['sfreq'])
 
-# --------------------
-# FEATURE EXTRACTION
-# --------------------
-all_features = []
+def key_pressed():
+    return select.select([sys.stdin], [], [], 0)[0]
 
-data = epochs.get_data()  # (n_epochs, n_channels, n_samples)
 
-for epoch in data:
-    features = extract_features(epoch, sfreq)
-    all_features.append(features)
+def main():
+    subject_id = input("Subject ID: ").strip()
+    notes = input("Session notes (optional): ").strip()
 
-all_features = np.array(all_features)
+    reader = LSLEEGReader(expected_srate=250.0, buffer_seconds=10.0)
+    reader.connect()
 
-print("Feature matrix shape:", all_features.shape)
+    write_session_metadata(
+        subject_id=subject_id,
+        srate=reader.srate or 250.0,
+        n_channels=reader.n_channels,
+        channels=[f"ch{i}" for i in range(reader.n_channels)],
+        notes=notes,
+    )
 
+    raw_logger = RawEEGLogger(subject_id=subject_id, session_label="raw")
+    event_logger = EventLogger(subject_id=subject_id)
+    raw_logger.write_header(reader.n_channels)
+
+    print("\nControls:")
+    print("  b → baseline start")
+    print("  s → stress start")
+    print("  r → recovery start")
+    print("  q → quit\n")
+
+    try:
+        while True:
+            # ALWAYS read EEG
+            chunk = reader.pull_chunk(max_samples=256, timeout=0.0)
+            if chunk is not None:
+                raw_logger.log_chunk(chunk)
+
+            # Only read keyboard if user pressed something
+            if key_pressed():
+                key = sys.stdin.readline().strip().lower()
+
+                if key == "b":
+                    event_logger.mark("baseline_start")
+                elif key == "s":
+                    event_logger.mark("stress_start")
+                elif key == "r":
+                    event_logger.mark("recovery_start")
+                elif key == "q":
+                    break
+
+            time.sleep(0.002)  # prevents CPU maxing
+
+    finally:
+        raw_logger.close()
+        event_logger.close()
+        print("Session saved cleanly.")
+
+
+if __name__ == "__main__":
+    main()
