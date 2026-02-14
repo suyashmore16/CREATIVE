@@ -33,6 +33,8 @@ class RawEEGLogger:
         for i in range(chunk.data.shape[0]):
             row = [chunk.timestamps[i]] + chunk.data[i].tolist()
             self._writer.writerow(row)
+        self._file.flush()   # IMPORTANT
+
 
     def close(self):
         self._file.close()
